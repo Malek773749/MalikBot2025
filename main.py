@@ -28,27 +28,11 @@ from telebot import types
 from fpdf import FPDF
 from cryptography.fernet import Fernet
 
-# ===== قراءة المتغيرات من البيئة أو استخدام القيم الافتراضية =====
-def get_env_var(key, default=""):
-    """قراءة متغير بيئة بأمان"""
-    return os.environ.get(key, default).strip()
-
-# ===== الإعدادات الرئيسية =====
-BOT_TOKEN = get_env_var("BOT_TOKEN", "")
-try:
-    ADMIN_ID = int(get_env_var("ADMIN_ID", ""))
-except ValueError:
-    ADMIN_ID = 7634753556
-
-CHANNEL = get_env_var("CHANNEL", "")
-OPENAI_KEY = get_env_var("OPENAI_API_KEY", "")
-
-# تحقق من المفتاح
-if not OPENAI_KEY:
-    print("⚠️ تحذير: مفتاح OpenAI غير موجود. الذكاء الاصطناعي معطل.")
-elif "sk-proj-" in OPENAI_KEY or "your-key" in OPENAI_KEY:
-    print("⚠️ تحذير: مفتاح OpenAI غير صالح. الذكاء الاصطناعي معطل.")
-    OPENAI_KEY = ""
+# ===== إعدادات مدمجة في الكود (سيتم تعبئتها يدوياً) =====
+BOT_TOKEN = ""  # ⚠️ ضع توكن البوت هنا (من @BotFather)
+ADMIN_ID =   # ⚠️ ضع معرف المشرف هنا
+CHANNEL = ""  # ⚠️ ضع معرف القناة هنا
+OPENAI_KEY = ""  # ⚠️ (اختياري) ضع مفتاح OpenAI API هنا
 
 # ===== توليد مفتاح تشفير تلقائي =====
 def generate_encryption_key():
@@ -88,11 +72,7 @@ POINTS_LIMITS = {
 }
 
 # ===== تهيئة البوت =====
-try:
-    bot = telebot.TeleBot(BOT_TOKEN)
-except Exception as e:
-    print(f"❌ خطأ في تهيئة البوت: {e}")
-    sys.exit(1)
+bot = telebot.TeleBot(BOT_TOKEN)
 
 # ===== نظام التشفير =====
 class EncryptionManager:
@@ -261,47 +241,76 @@ def init_database():
                 processed_at TEXT
             )""")
 
-            default_settings = [
-                ('maintenance_mode', 'off'),
-                ('points_enabled', 'on'),
-                ('welcome_message', '🎉 مرحباً بك في MalikBot2025 Pro!'),
-                ('ad_message', '📺 شاهد هذا الإعلان لمدة 30 ثانية لتحصل على نقطة!'),
-                ('currency_name', 'نقطة'),
-                ('admin_notifications', 'true'),
-                ('backup_interval', '24'),
-                ('withdraw_methods', 'paypal,wallet,bank'),
-                ('referral_levels', '3'),
-                ('level2_bonus', '0.5'),
-                ('level3_bonus', '0.25'),
-                ('daily_ad_limit', '10'),
-                ('daily_ai_limit', '3'),
-                ('max_pdf_size', '10000'),
-                ('max_ai_length', '1000'),
-                ('ad_duration', '30'),
-                ('min_withdraw', '50'),
-                ('withdraw_fee', '2'),
-                ('auto_backup', 'true'),
-                ('channel_check', 'false')
-            ]
+            # إضافة الإعدادات الافتراضية فقط إذا لم تكن موجودة
+            cursor.execute("SELECT COUNT(*) FROM settings")
+            if cursor.fetchone()[0] == 0:
+                default_settings = [
+                    ('maintenance_mode', 'off'),
+                    ('points_enabled', 'on'),
+                    ('welcome_message', '🎉 مرحباً بك في MalikBot2025 Pro!'),
+                    ('ad_message', '📺 شاهد هذا الإعلان لمدة 30 ثانية لتحصل على نقطة!'),
+                    ('currency_name', 'نقطة'),
+                    ('admin_notifications', 'true'),
+                    ('backup_interval', '24'),
+                    ('withdraw_methods', 'paypal,wallet,bank'),
+                    ('referral_levels', '3'),
+                    ('level2_bonus', '0.5'),
+                    ('level3_bonus', '0.25'),
+                    ('daily_ad_limit', '10'),
+                    ('daily_ai_limit', '3'),
+                    ('max_pdf_size', '10000'),
+                    ('max_ai_length', '1000'),
+                    ('ad_duration', '30'),
+                    ('min_withdraw', '50'),
+                    ('withdraw_fee', '2'),
+                    ('auto_backup', 'true'),
+                    ('channel_check', 'false')
+                ]
 
-            for key, value in default_settings:
-                cursor.execute("SELECT key FROM settings WHERE key = ?", (key,))
-                if not cursor.fetchone():
+                for key, value in default_settings:
                     cursor.execute(
                         "INSERT INTO settings(key, value, updated_at) VALUES(?, ?, datetime('now'))",
                         (key, value))
+                logger.info("✅ تم إضافة الإعدادات الافتراضية")
 
         logger.info("✅ تم تهيئة قاعدة البيانات بنجاح")
         return True
     except Exception as e:
         logger.error(f"❌ فشل تهيئة قاعدة البيانات: {e}")
-        return False
+        # محاولة إنشاء قاعدة بيانات بسيطة
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS users(user_id INTEGER PRIMARY KEY, points REAL DEFAULT 0)")
+            conn.commit()
+            conn.close()
+            logger.info("✅ تم إنشاء قاعدة بيانات أساسية")
+            return True
+        except Exception as e2:
+            logger.error(f"❌ فشل إنشاء قاعدة بيانات أساسية: {e2}")
+            return False
 
 # ===== دوال مساعدة =====
 def get_setting(key, default=''):
     """الحصول على إعداد من قاعدة البيانات"""
     try:
         with get_db_cursor() as cursor:
+            # التحقق أولاً من وجود جدول settings
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
+            if not cursor.fetchone():
+                # إنشاء الجدول إذا لم يكن موجوداً
+                cursor.execute("""CREATE TABLE IF NOT EXISTS settings(
+                    key TEXT PRIMARY KEY,
+                    value TEXT,
+                    updated_at TEXT DEFAULT (datetime('now'))
+                )""")
+                # إضافة بعض الإعدادات الأساسية
+                cursor.execute("INSERT INTO settings(key, value) VALUES('maintenance_mode', 'off')")
+                cursor.execute("INSERT INTO settings(key, value) VALUES('currency_name', 'نقطة')")
+                cursor.execute("INSERT INTO settings(key, value) VALUES('welcome_message', '🎉 مرحباً بك في MalikBot2025 Pro!')")
+                logger.info("✅ تم إنشاء جدول settings تلقائياً")
+            
             cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
             result = cursor.fetchone()
             return result[0] if result else default
@@ -474,6 +483,9 @@ TEXTS = {
         'pdf_created': '✅ تم إنشاء PDF بنجاح!',
         'ai_thinking': '🤔 جاري التفكير...',
         'ai_error': '❌ حدث خطأ في الذكاء الاصطناعي.',
+        'ai_no_key': '❌ لم يتم تكوين مفتاح OpenAI. الرجاء إضافته في Railway Variables.',
+        'ai_quota_exceeded': '❌ تجاوزت الحد المسموح. الرجاء تحديث المفتاح.',
+        'ai_rate_limit': '❌ تجاوزت الحد المسموح للطلبات. حاول بعد دقائق.',
         'insufficient_points': '❌ نقاطك غير كافية. تحتاج إلى {points} نقطة.',
         'ad_watched': '✅ شكراً لمشاهدة الإعلان! حصلت على {points} نقطة.',
         'withdraw_request': '📤 تم تقديم طلب السحب بنجاح.',
@@ -498,7 +510,7 @@ TEXTS = {
         'action_cancelled': '❌ تم إلغاء الإجراء.',
         'feature_coming_soon': '🚧 هذه الميزة قيد التطوير.',
         'bot_updated': '🔄 تم تحديث البوت.',
-        'server_status': '📊 حالة الخادم: {status}',
+        'server_status': '📊 حالة الخدمة: {status}',
         'connection_error': '🔌 خطأ في الاتصال.',
         'account_verified': '✅ تم التحقق من الحساب.',
         'account_suspended': '🚫 حساب معطل.',
@@ -522,6 +534,9 @@ TEXTS = {
         'pdf_created': '✅ PDF created successfully!',
         'ai_thinking': '🤔 Thinking...',
         'ai_error': '❌ Error in AI service.',
+        'ai_no_key': '❌ OpenAI API key not configured. Please add it in Railway Variables.',
+        'ai_quota_exceeded': '❌ Quota exceeded. Please update your API key.',
+        'ai_rate_limit': '❌ Rate limit exceeded. Try again in a few minutes.',
         'insufficient_points': '❌ Insufficient points. You need {points} points.',
         'ad_watched': '✅ Thanks for watching the ad! You earned {points} points.',
         'withdraw_request': '📤 Withdrawal request submitted successfully.',
@@ -783,15 +798,16 @@ def process_pdf_content(message):
         bot.send_message(user_id, "❌ حدث خطأ أثناء إنشاء PDF")
         update_user_points(user_id, pdf_cost, 'استرداد نقاط PDF')
 
-# ===== الذكاء الاصطناعي (محدث) =====
+# ===== الذكاء الاصطناعي (مع إصلاحات متكاملة) =====
 @bot.message_handler(func=lambda m: m.text in [get_text('ai_assistant', m.chat.id), "🤖 الذكاء الاصطناعي"])
 @error_handler
 def ai_assistant_command(message):
     """معالجة طلب الذكاء الاصطناعي"""
     user_id = message.chat.id
 
-    if not OPENAI_KEY:
-        bot.send_message(user_id, "❌ خدمة الذكاء الاصطناعي غير متاحة حالياً.")
+    # التحقق من وجود مفتاح OpenAI
+    if not OPENAI_KEY or OPENAI_KEY.strip() == "":
+        bot.send_message(user_id, get_text('ai_no_key', user_id))
         return
 
     try:
@@ -816,7 +832,8 @@ def ai_assistant_command(message):
         user_id,
         f"💬 **المساعد الذكي**\n\n"
         f"أرسل سؤالك أو طلبك (الحد الأقصى {max_ai_length} حرف):\n"
-        f"📊 الطلبات اليومية: {daily_ai}/{daily_limit}",
+        f"📊 الطلبات اليومية: {daily_ai}/{daily_limit}\n"
+        f"💰 التكلفة: {ai_cost} {get_setting('currency_name', 'نقطة')} (بعد {daily_limit} طلبات مجانية)",
         parse_mode='Markdown')
 
     bot.register_next_step_handler(message, process_ai_request)
@@ -830,6 +847,11 @@ def process_ai_request(message):
 
     if len(prompt) > max_ai_length:
         bot.send_message(user_id, get_text('too_long', user_id, length=max_ai_length))
+        return
+
+    # التحقق من وجود مفتاح OpenAI
+    if not OPENAI_KEY or OPENAI_KEY.strip() == "":
+        bot.send_message(user_id, get_text('ai_no_key', user_id))
         return
 
     try:
@@ -857,7 +879,7 @@ def process_ai_request(message):
     processing_msg = bot.send_message(user_id, get_text('ai_thinking', user_id))
 
     try:
-        # الطريقة الحديثة لاستخدام OpenAI API
+        # محاولة استخدام الإصدار الجديد من OpenAI
         try:
             from openai import OpenAI
             client = OpenAI(api_key=OPENAI_KEY)
@@ -876,7 +898,7 @@ def process_ai_request(message):
             tokens_used = response.usage.total_tokens
 
         except ImportError:
-            # الطريقة القديمة (للتوافق مع الإصدارات السابقة)
+            # استخدام الإصدار القديم
             import openai
             openai.api_key = OPENAI_KEY
             
@@ -893,6 +915,9 @@ def process_ai_request(message):
             answer = response.choices[0].message.content
             tokens_used = response.usage.total_tokens
 
+        except Exception as e:
+            raise e
+
         try:
             with get_db_cursor() as cursor:
                 cursor.execute(
@@ -906,18 +931,22 @@ def process_ai_request(message):
 
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"خطأ في الذكاء الاصطناعي: {error_msg}")
         bot.delete_message(user_id, processing_msg.message_id)
         
-        if "insufficient_quota" in error_msg:
-            bot.send_message(user_id, "❌ تجاوزت الحد المسموح في OpenAI. الرجاء تحديث المفتاح.")
-        elif "authentication" in error_msg.lower():
-            bot.send_message(user_id, "❌ مفتاح OpenAI غير صالح.")
+        if "insufficient_quota" in error_msg or "exceeded" in error_msg:
+            bot.send_message(user_id, get_text('ai_quota_exceeded', user_id))
+        elif "authentication" in error_msg.lower() or "invalid" in error_msg.lower():
+            bot.send_message(user_id, "❌ مفتاح OpenAI غير صالح أو منتهي الصلاحية.")
         elif "rate limit" in error_msg.lower():
-            bot.send_message(user_id, "❌ تجاوزت الحد المسموح للطلبات. حاول بعد دقائق.")
+            bot.send_message(user_id, get_text('ai_rate_limit', user_id))
+        elif "timeout" in error_msg.lower():
+            bot.send_message(user_id, "⏱️ انتهت مهلة الطلب. حاول مرة أخرى.")
         else:
             bot.send_message(user_id, get_text('ai_error', user_id))
         
+        logger.error(f"خطأ في الذكاء الاصطناعي: {error_msg}")
+        
+        # استرداد النقاط إذا تم خصمها
         if cost_charged > 0:
             update_user_points(user_id, cost_charged, 'استرداد نقاط AI')
 
@@ -1380,10 +1409,19 @@ def run_bot():
             print("\n❌ لا يمكن تشغيل البوت بدون التوكن ومعرف المشرف!")
             return
 
+    # تحسين تهيئة قاعدة البيانات
+    print("🔍 جاري التحقق من قاعدة البيانات...")
+    
+    # التحقق من وجود ملف قاعدة البيانات
+    if not os.path.exists(DB_FILE):
+        print("🆕 إنشاء قاعدة بيانات جديدة...")
+        with open(DB_FILE, 'w') as f:
+            pass  # إنشاء ملف فارغ
+        
+    # تهيئة قاعدة البيانات
     if not init_database():
-        print("❌ فشل تهيئة قاعدة البيانات!")
-        return
-
+        print("⚠️ تم إنشاء قاعدة بيانات أساسية...")
+    
     try:
         bot_info = bot.get_me()
         print(f"✅ البوت: @{bot_info.username}")
@@ -1397,7 +1435,7 @@ def run_bot():
     print(f"👑 المشرف: {ADMIN_ID}")
     print(f"📢 القناة: {CHANNEL if CHANNEL else 'غير محددة'}")
     print(f"💾 قاعدة البيانات: {DB_FILE}")
-    print(f"🤖 الذكاء الاصطناعي: {'✅ مفعل' if OPENAI_KEY else '❌ معطل'}")
+    print(f"🤖 الذكاء الاصطناعي: {'✅ مفعل' if OPENAI_KEY and OPENAI_KEY.strip() != '' else '❌ معطل'}")
     print(f"🛠️ وضع الصيانة: {'✅ مفعل' if get_setting('maintenance_mode', 'off').lower() == 'on' else '❌ معطل'}")
     print("✅ التحقق من القناة: معطل مؤقتًا (لتفعيله لاحقًا)")
     print("=" * 60)
@@ -1412,7 +1450,7 @@ def run_bot():
             total_points = cursor.fetchone()[0] or 0
             print(f"💰 إجمالي النقاط: {total_points:.2f}")
     except Exception as e:
-        print(f"❌ خطأ في قراءة قاعدة البيانات: {e}")
+        print(f"⚠️ لا يمكن قراءة قاعدة البيانات: {e}")
 
     try:
         threading.Thread(target=backup_worker, daemon=True).start()
