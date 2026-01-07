@@ -28,11 +28,27 @@ from telebot import types
 from fpdf import FPDF
 from cryptography.fernet import Fernet
 
-# ===== إعدادات مدمجة في الكود (سيتم تعبئتها يدوياً) =====
-BOT_TOKEN = ""  # ⚠️ ضع توكن البوت هنا (من @BotFather)
-ADMIN_ID = 7634753556  # ⚠️ ضع معرف المشرف هنا
-CHANNEL = "@MalikChannel"  # ⚠️ ضع معرف القناة هنا
-OPENAI_KEY ="  # ⚠️ (اختياري) ضع مفتاح OpenAI API هنا
+# ===== قراءة المتغيرات من البيئة أو استخدام القيم الافتراضية =====
+def get_env_var(key, default=""):
+    """قراءة متغير بيئة بأمان"""
+    return os.environ.get(key, default).strip()
+
+# ===== الإعدادات الرئيسية =====
+BOT_TOKEN = get_env_var("BOT_TOKEN", "")
+try:
+    ADMIN_ID = int(get_env_var("ADMIN_ID", ""))
+except ValueError:
+    ADMIN_ID = 7634753556
+
+CHANNEL = get_env_var("CHANNEL", "")
+OPENAI_KEY = get_env_var("OPENAI_API_KEY", "")
+
+# تحقق من المفتاح
+if not OPENAI_KEY:
+    print("⚠️ تحذير: مفتاح OpenAI غير موجود. الذكاء الاصطناعي معطل.")
+elif "sk-proj-" in OPENAI_KEY or "your-key" in OPENAI_KEY:
+    print("⚠️ تحذير: مفتاح OpenAI غير صالح. الذكاء الاصطناعي معطل.")
+    OPENAI_KEY = ""
 
 # ===== توليد مفتاح تشفير تلقائي =====
 def generate_encryption_key():
@@ -72,7 +88,11 @@ POINTS_LIMITS = {
 }
 
 # ===== تهيئة البوت =====
-bot = telebot.TeleBot(BOT_TOKEN)
+try:
+    bot = telebot.TeleBot(BOT_TOKEN)
+except Exception as e:
+    print(f"❌ خطأ في تهيئة البوت: {e}")
+    sys.exit(1)
 
 # ===== نظام التشفير =====
 class EncryptionManager:
@@ -763,7 +783,7 @@ def process_pdf_content(message):
         bot.send_message(user_id, "❌ حدث خطأ أثناء إنشاء PDF")
         update_user_points(user_id, pdf_cost, 'استرداد نقاط PDF')
 
-# ===== الذكاء الاصطناعي =====
+# ===== الذكاء الاصطناعي (محدث) =====
 @bot.message_handler(func=lambda m: m.text in [get_text('ai_assistant', m.chat.id), "🤖 الذكاء الاصطناعي"])
 @error_handler
 def ai_assistant_command(message):
@@ -837,21 +857,41 @@ def process_ai_request(message):
     processing_msg = bot.send_message(user_id, get_text('ai_thinking', user_id))
 
     try:
-        import openai
-        openai.api_key = OPENAI_KEY
+        # الطريقة الحديثة لاستخدام OpenAI API
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=OPENAI_KEY)
+            
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant. Respond in Arabic if the question is in Arabic."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=500,
+                temperature=0.7
+            )
 
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant. Respond in Arabic if the question is in Arabic."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=500,
-            temperature=0.7
-        )
+            answer = response.choices[0].message.content
+            tokens_used = response.usage.total_tokens
 
-        answer = response.choices[0].message.content
-        tokens_used = response.usage.total_tokens
+        except ImportError:
+            # الطريقة القديمة (للتوافق مع الإصدارات السابقة)
+            import openai
+            openai.api_key = OPENAI_KEY
+            
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant. Respond in Arabic if the question is in Arabic."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=500,
+                temperature=0.7
+            )
+
+            answer = response.choices[0].message.content
+            tokens_used = response.usage.total_tokens
 
         try:
             with get_db_cursor() as cursor:
@@ -864,14 +904,20 @@ def process_ai_request(message):
         bot.delete_message(user_id, processing_msg.message_id)
         bot.send_message(user_id, f"**🤖 الإجابة:**\n\n{answer}", parse_mode='Markdown')
 
-    except ImportError:
-        bot.delete_message(user_id, processing_msg.message_id)
-        bot.send_message(user_id, "❌ مكتبة OpenAI غير مثبتة. قم بتثبيتها عبر: pip install openai")
     except Exception as e:
-        logger.error(f"خطأ في الذكاء الاصطناعي: {e}")
+        error_msg = str(e)
+        logger.error(f"خطأ في الذكاء الاصطناعي: {error_msg}")
         bot.delete_message(user_id, processing_msg.message_id)
-        bot.send_message(user_id, get_text('ai_error', user_id))
-
+        
+        if "insufficient_quota" in error_msg:
+            bot.send_message(user_id, "❌ تجاوزت الحد المسموح في OpenAI. الرجاء تحديث المفتاح.")
+        elif "authentication" in error_msg.lower():
+            bot.send_message(user_id, "❌ مفتاح OpenAI غير صالح.")
+        elif "rate limit" in error_msg.lower():
+            bot.send_message(user_id, "❌ تجاوزت الحد المسموح للطلبات. حاول بعد دقائق.")
+        else:
+            bot.send_message(user_id, get_text('ai_error', user_id))
+        
         if cost_charged > 0:
             update_user_points(user_id, cost_charged, 'استرداد نقاط AI')
 
