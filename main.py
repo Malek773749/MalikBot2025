@@ -29,10 +29,10 @@ from fpdf import FPDF
 from cryptography.fernet import Fernet
 
 # ===== إعدادات مدمجة في الكود (سيتم تعبئتها يدوياً) =====
-BOT_TOKEN = ""  # ⚠️ ضع توكن البوت هنا (من @BotFather)
-ADMIN_ID =   # ⚠️ ضع معرف المشرف هنا
-CHANNEL = ""  # ⚠️ ضع معرف القناة هنا
-OPENAI_KEY = ""  # ⚠️ (اختياري) ضع مفتاح OpenAI API هنا
+BOT_TOKEN = ""
+ADMIN_ID =
+CHANNEL = ""
+OPENAI_KEY = ""
 
 # ===== توليد مفتاح تشفير تلقائي =====
 def generate_encryption_key():
