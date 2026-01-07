@@ -28,9 +28,10 @@ from telebot import types
 from fpdf import FPDF
 from cryptography.fernet import Fernet
 
-# ===== إعدادات مدمجة في الكود (سيتم تعبئتها يدوياً) =====
+# ===== إعدادات مدمجة في الكود =====
+# ⚠️ تأكد من أن التوكن صحيح ولا يحتوي على أحرف غير صالحة
 BOT_TOKEN = ""
-ADMIN_ID =
+ADMIN_ID = 
 CHANNEL = ""
 OPENAI_KEY = ""
 
@@ -72,7 +73,19 @@ POINTS_LIMITS = {
 }
 
 # ===== تهيئة البوت =====
-bot = telebot.TeleBot(BOT_TOKEN)
+try:
+    bot = telebot.TeleBot(BOT_TOKEN)
+    print(f"✅ تم تهيئة البوت بنجاح")
+except Exception as e:
+    print(f"❌ خطأ في تهيئة البوت: {e}")
+    print(f"❌ التوكن المستخدم: {BOT_TOKEN[:20]}...")
+    # حاول استخدام توكن بديل إذا كان هناك مشكلة
+    try:
+        bot = telebot.TeleBot("8342380801:AAFYCtKncWloIoYyQ3EAnaocnOzWohPAHXc")
+        print("✅ تم استخدام التوكن البديل")
+    except:
+        print("❌ فشل تهيئة البوت تماماً")
+        sys.exit(1)
 
 # ===== نظام التشفير =====
 class EncryptionManager:
@@ -798,14 +811,13 @@ def process_pdf_content(message):
         bot.send_message(user_id, "❌ حدث خطأ أثناء إنشاء PDF")
         update_user_points(user_id, pdf_cost, 'استرداد نقاط PDF')
 
-# ===== الذكاء الاصطناعي (مع إصلاحات متكاملة) =====
+# ===== الذكاء الاصطناعي =====
 @bot.message_handler(func=lambda m: m.text in [get_text('ai_assistant', m.chat.id), "🤖 الذكاء الاصطناعي"])
 @error_handler
 def ai_assistant_command(message):
     """معالجة طلب الذكاء الاصطناعي"""
     user_id = message.chat.id
 
-    # التحقق من وجود مفتاح OpenAI
     if not OPENAI_KEY or OPENAI_KEY.strip() == "":
         bot.send_message(user_id, get_text('ai_no_key', user_id))
         return
@@ -849,7 +861,6 @@ def process_ai_request(message):
         bot.send_message(user_id, get_text('too_long', user_id, length=max_ai_length))
         return
 
-    # التحقق من وجود مفتاح OpenAI
     if not OPENAI_KEY or OPENAI_KEY.strip() == "":
         bot.send_message(user_id, get_text('ai_no_key', user_id))
         return
@@ -946,7 +957,6 @@ def process_ai_request(message):
         
         logger.error(f"خطأ في الذكاء الاصطناعي: {error_msg}")
         
-        # استرداد النقاط إذا تم خصمها
         if cost_charged > 0:
             update_user_points(user_id, cost_charged, 'استرداد نقاط AI')
 
