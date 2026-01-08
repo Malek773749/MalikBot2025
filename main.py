@@ -30,7 +30,7 @@ from cryptography.fernet import Fernet
 
 # ===== إعدادات مدمجة في الكود =====
 BOT_TOKEN = ""
-ADMIN_ID = 
+ADMIN_ID = 7634753556
 CHANNEL = ""
 OPENAI_KEY = ""
 
