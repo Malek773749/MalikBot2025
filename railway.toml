@@ -1,29 +1,10 @@
 [build]
-builder = "nixpacks"
-buildCommand = "pip install -r requirements.txt"
+builder = "dockerfile"
+dockerfilePath = "./Dockerfile"
 
 [deploy]
-startCommand = "python bot.py"
-healthCheckPath = "/"
-healthCheckTimeout = 30
+startCommand = "python /app/bot.py"
 
-[environment]
-PORT = "8080"
-
-# المتغيرات البيئية المطلوبة
 [variables]
-BOT_TOKEN = { required = true }
-ADMIN_IDS = { required = true }
-
-# إعدادات النظام
-[environment.variables]
-PYTHONUNBUFFERED = "1"
-TZ = "Asia/Riyadh"
-PYTHONPATH = "/app"
-
-# إعدادات الصحة
-[healthCheck]
-path = "/"
-timeout = 30
-interval = 60
-startTimeout = 60
+BOT_TOKEN = "8342380801:AAFYCtKncWloIoYyQ3EAnaocnOzWohPAHXc"
+ADMIN_IDS = "7634753556"
