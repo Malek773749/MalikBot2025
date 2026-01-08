@@ -29,7 +29,7 @@ from fpdf import FPDF
 from cryptography.fernet import Fernet
 
 # ===== إعدادات مدمجة في الكود =====
-BOT_TOKEN = ""
+BOT_TOKEN = "8342380801:AAFYCtKncWloIoYyQ3EAnaocnOzWohPAHXc"
 ADMIN_ID = 7634753556
 CHANNEL = ""
 OPENAI_KEY = ""
