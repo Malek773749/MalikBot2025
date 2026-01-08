@@ -29,7 +29,6 @@ from fpdf import FPDF
 from cryptography.fernet import Fernet
 
 # ===== إعدادات مدمجة في الكود =====
-# ⚠️ تأكد من أن التوكن صحيح ولا يحتوي على أحرف غير صالحة
 BOT_TOKEN = ""
 ADMIN_ID = 
 CHANNEL = ""
@@ -79,13 +78,7 @@ try:
 except Exception as e:
     print(f"❌ خطأ في تهيئة البوت: {e}")
     print(f"❌ التوكن المستخدم: {BOT_TOKEN[:20]}...")
-    # حاول استخدام توكن بديل إذا كان هناك مشكلة
-    try:
-        bot = telebot.TeleBot("8342380801:AAFYCtKncWloIoYyQ3EAnaocnOzWohPAHXc")
-        print("✅ تم استخدام التوكن البديل")
-    except:
-        print("❌ فشل تهيئة البوت تماماً")
-        sys.exit(1)
+    sys.exit(1)
 
 # ===== نظام التشفير =====
 class EncryptionManager:
