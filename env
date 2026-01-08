@@ -1,0 +1,10 @@
+# التوكن الأساسي
+BOT_TOKEN=8342380801:AAFYCtKncWloIoYyQ3EAnaocnOzWohPAHXc
+
+# المشرفين (افصل بينهم بفاصلة)
+ADMIN_IDS=7634753556
+
+# إعدادات النظام
+PORT=8080
+PYTHONUNBUFFERED=1
+TZ=Asia/Riyadh
